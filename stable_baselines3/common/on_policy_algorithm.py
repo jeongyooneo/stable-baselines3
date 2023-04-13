@@ -87,7 +87,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             supported_action_spaces=supported_action_spaces,
         )
 
-        self.n_steps = n_steps
+        self.n_rollout_steps = n_steps
         self.gamma = gamma
         self.gae_lambda = gae_lambda
         self.ent_coef = ent_coef
@@ -105,7 +105,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         buffer_cls = DictRolloutBuffer if isinstance(self.observation_space, spaces.Dict) else RolloutBuffer
 
         self.rollout_buffer = buffer_cls(
-            self.n_steps,
+            self.n_rollout_steps,
             self.observation_space,
             self.action_space,
             device=self.device,
@@ -121,6 +121,26 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             **self.policy_kwargs  # pytype:disable=not-instantiable
         )
         self.policy = self.policy.to(self.device)
+
+    def env_step_result(self, new_obs, rewards, dones, infos):
+        # Logic after env.step()
+        self.rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
+        print(f'env_step_result:==================== obs {new_obs} action {actions} rewards {rewards}')
+
+        # Logic from the start of collect_rollouts() to env.step()
+        with th.no_grad():
+            # Convert to pytorch tensor or to TensorDict
+            obs_tensor = obs_as_tensor(self._last_obs, self.device)
+            actions, values, log_probs = self.policy(obs_tensor)
+        actions = actions.cpu().numpy()
+
+        # Rescale and perform action
+        clipped_actions = actions
+        # Clip the actions to avoid out of bound error
+        if isinstance(self.action_space, spaces.Box):
+            clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
+
+        return clipped_actions
 
     def collect_rollouts(
         self,
@@ -172,7 +192,6 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
 
             new_obs, rewards, dones, infos = env.step(clipped_actions)
-
             self.num_timesteps += env.num_envs
 
             # Give access to local variables
@@ -243,10 +262,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         callback.on_training_start(locals(), globals())
 
         while self.num_timesteps < total_timesteps:
-            continue_training = self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_steps)
-
-            if continue_training is False:
-                break
+            # (1) Rollout collection.
+            # One rollout collection consists of n_rollout_steps number of env.step()s.
+            self.collect_rollouts(self.env, callback, self.rollout_buffer, n_rollout_steps=self.n_rollout_steps)
 
             iteration += 1
             self._update_current_progress_remaining(self.num_timesteps, total_timesteps)
@@ -264,6 +282,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 self.logger.record("time/total_timesteps", self.num_timesteps, exclude="tensorboard")
                 self.logger.dump(step=self.num_timesteps)
 
+            # (2) Model update.
+            # After finishing one rollout collection loop, do model update.
             self.train()
 
         callback.on_training_end()
