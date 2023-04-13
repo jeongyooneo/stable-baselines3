@@ -122,14 +122,11 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         )
         self.policy = self.policy.to(self.device)
 
-    def env_step_result(self, new_obs, rewards, dones, infos):
-        # Logic after env.step()
-        self.rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
-        print(f'env_step_result:==================== obs {new_obs} action {actions} rewards {rewards}')
-
-        # Logic from the start of collect_rollouts() to env.step()
+    '''
+    Compute actions based on the latest previous obs (self._last_obs)
+    '''
+    def compute_actions(self):
         with th.no_grad():
-            # Convert to pytorch tensor or to TensorDict
             obs_tensor = obs_as_tensor(self._last_obs, self.device)
             actions, values, log_probs = self.policy(obs_tensor)
         actions = actions.cpu().numpy()
@@ -140,7 +137,51 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         if isinstance(self.action_space, spaces.Box):
             clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
 
-        return clipped_actions
+        return clipped_actions, values, log_probs
+
+    # self.policy.add_new_obs_and_trajectory(new_obs, actions, rewards, values, log_probs)
+    def add_new_obs_and_trajectory(self, new_obs, actions, rewards, values, log_probs, dones, infos):
+        self.num_timesteps += 1
+        self._update_info_buffer(infos)
+
+        if isinstance(self.action_space, spaces.Discrete):
+            # Reshape in case of discrete action
+            actions = actions.reshape(-1, 1)
+
+        # Handle timeout by bootstraping with value function
+        # see GitHub issue #633
+        for idx, done in enumerate(dones):
+            if (
+                done
+                and infos[idx].get("terminal_observation") is not None
+                and infos[idx].get("TimeLimit.truncated", False)
+            ):
+                terminal_obs = self.policy.obs_to_tensor(infos[idx]["terminal_observation"])[0]
+                with th.no_grad():
+                    terminal_value = self.policy.predict_values(terminal_obs)[0]
+                rewards[idx] += self.gamma * terminal_value
+
+        # Note that the trajectory is related to the self._last_obs
+        # rewardw: how good the previously computed action was
+        # actions, values and log_probs are calculated from self._last_obs
+        # i.e. new_obs is not added in this trajectory
+        self.rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
+        self._last_obs = new_obs
+        self._last_episode_starts = dones
+
+        # Rollout loop finished
+        if self.num_timesteps % self.n_rollout_steps:
+            with th.no_grad():
+                # Compute value for the last timestep
+                values = self.policy.predict_values(obs_as_tensor(new_obs, self.device))
+            self.rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
+
+    '''
+    Initial steps when starting one rollout collection
+    '''
+    def init_rollout_collection(self):
+        self.policy.set_training_mode(False)
+        self.rollout_buffer.reset()
 
     def collect_rollouts(
         self,
@@ -179,6 +220,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 # Sample a new noise matrix
                 self.policy.reset_noise(env.num_envs)
 
+            # Compute actions based on self._last_obs.
             with th.no_grad():
                 # Convert to pytorch tensor or to TensorDict
                 obs_tensor = obs_as_tensor(self._last_obs, self.device)
@@ -219,6 +261,10 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                         terminal_value = self.policy.predict_values(terminal_obs)[0]
                     rewards[idx] += self.gamma * terminal_value
 
+            # Note that the trajectory added is that related to the self._last_obs (latest prev obs)
+            # - rewards as a evaluation result of how good the action was w.r.t. self._last_obs
+            # - actions, values and log_probs are calculated from self._last_obs
+            # i.e. new_obs is not added in the current trajectory
             rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
             self._last_obs = new_obs
             self._last_episode_starts = dones
