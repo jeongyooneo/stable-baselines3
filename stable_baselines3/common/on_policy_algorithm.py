@@ -25,8 +25,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
     :param env: The environment to learn from (if registered in Gym, can be str)
     :param learning_rate: The learning rate, it can be a function
         of the current progress remaining (from 1 to 0)
-    :param n_steps: The number of steps to run for each environment per update
-        (i.e. batch size is n_steps * n_env where n_env is number of environment copies running in parallel)
+    :param n_rollout_steps: The number of steps to run for each environment per update
+        (i.e. batch size is n_rollout_steps * n_env where n_env is number of environment copies running in parallel)
     :param gamma: Discount factor
     :param gae_lambda: Factor for trade-off of bias vs variance for Generalized Advantage Estimator.
         Equivalent to classic advantage when set to 1.
@@ -55,7 +55,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule],
-        n_steps: int,
+        n_rollout_steps: int,
         gamma: float,
         gae_lambda: float,
         ent_coef: float,
@@ -87,7 +87,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             supported_action_spaces=supported_action_spaces,
         )
 
-        self.n_rollout_steps = n_steps
+        self.n_rollout_steps = n_rollout_steps
         self.gamma = gamma
         self.gae_lambda = gae_lambda
         self.ent_coef = ent_coef
@@ -128,6 +128,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
     def compute_actions(self):
         with th.no_grad():
             obs_tensor = obs_as_tensor(self._last_obs, self.device)
+            print(f'obs_tensor {obs_tensor}')
             actions, values, log_probs = self.policy(obs_tensor)
         actions = actions.cpu().numpy()
 
@@ -139,8 +140,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         return clipped_actions, values, log_probs
 
-    # self.policy.add_new_obs_and_trajectory(new_obs, actions, rewards, values, log_probs)
-    def add_new_obs_and_trajectory(self, new_obs, actions, rewards, values, log_probs, dones, infos):
+    def add_trajectory(self, new_obs, actions, rewards, values, log_probs, dones, infos):
         self.num_timesteps += 1
         self._update_info_buffer(infos)
 
@@ -173,7 +173,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         if self.num_timesteps % self.n_rollout_steps:
             with th.no_grad():
                 # Compute value for the last timestep
-                values = self.policy.predict_values(obs_as_tensor(new_obs, self.device))
+                # new_obs = obs_as_tensor(new_obs, self.device)
+                print(f'new_obs {new_obs} type {type(new_obs)}')
+                values = self.policy.predict_values(new_obs)
             self.rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
     '''
@@ -215,7 +217,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         callback.on_rollout_start()
 
-        while n_steps < n_rollout_steps:
+        while n_steps < self.n_rollout_steps:
             if self.use_sde and self.sde_sample_freq > 0 and n_steps % self.sde_sample_freq == 0:
                 # Sample a new noise matrix
                 self.policy.reset_noise(env.num_envs)
@@ -271,7 +273,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         with th.no_grad():
             # Compute value for the last timestep
-            values = self.policy.predict_values(obs_as_tensor(new_obs, self.device))
+            # new_obs = obs_as_tensor(new_obs, self.device)
+            print(f'new_obs {new_obs} type {type(new_obs)}')
+            values = self.policy.predict_values(new_obs)
 
         rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 

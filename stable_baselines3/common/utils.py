@@ -471,7 +471,7 @@ def polyak_update(
 
 
 def obs_as_tensor(
-    obs: Union[np.ndarray, Dict[Union[str, int], np.ndarray]], device: th.device
+    obs: Union[np.ndarray, Dict[Union[str, int], th.Tensor]], device: th.device
 ) -> Union[th.Tensor, TensorDict]:
     """
     Moves the observation to the given device.
@@ -484,6 +484,8 @@ def obs_as_tensor(
         return th.as_tensor(obs, device=device)
     elif isinstance(obs, dict):
         return {key: th.as_tensor(_obs, device=device) for (key, _obs) in obs.items()}
+    elif th.is_tensor(obs):
+        return obs
     else:
         raise Exception(f"Unrecognized type of observation {type(obs)}")
 

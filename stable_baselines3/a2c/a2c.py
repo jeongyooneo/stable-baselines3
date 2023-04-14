@@ -26,8 +26,8 @@ class A2C(OnPolicyAlgorithm):
     :param env: The environment to learn from (if registered in Gym, can be str)
     :param learning_rate: The learning rate, it can be a function
         of the current progress remaining (from 1 to 0)
-    :param n_steps: The number of steps to run for each environment per update
-        (i.e. batch size is n_steps * n_env where n_env is number of environment copies running in parallel)
+    :param n_rollout_steps: The number of steps to run for each environment per update
+        (i.e. batch size is n_rollout_steps * n_env where n_env is number of environment copies running in parallel)
     :param gamma: Discount factor
     :param gae_lambda: Factor for trade-off of bias vs variance for Generalized Advantage Estimator.
         Equivalent to classic advantage when set to 1.
@@ -63,7 +63,7 @@ class A2C(OnPolicyAlgorithm):
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 7e-4,
-        n_steps: int = 5,
+        n_rollout_steps: int = 5,
         gamma: float = 0.99,
         gae_lambda: float = 1.0,
         ent_coef: float = 0.0,
@@ -85,7 +85,7 @@ class A2C(OnPolicyAlgorithm):
             policy,
             env,
             learning_rate=learning_rate,
-            n_steps=n_steps,
+            n_rollout_steps=n_rollout_steps,
             gamma=gamma,
             gae_lambda=gae_lambda,
             ent_coef=ent_coef,
@@ -123,6 +123,7 @@ class A2C(OnPolicyAlgorithm):
         Update policy using the currently gathered
         rollout buffer (one gradient step over whole data).
         """
+        print(f'A2C Train strated ===============================')
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
 
@@ -177,6 +178,8 @@ class A2C(OnPolicyAlgorithm):
         self.logger.record("train/value_loss", value_loss.item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
+
+        print(f'A2C Train ended ===============================')
 
     def learn(
         self: SelfA2C,

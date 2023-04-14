@@ -29,9 +29,9 @@ class PPO(OnPolicyAlgorithm):
     :param env: The environment to learn from (if registered in Gym, can be str)
     :param learning_rate: The learning rate, it can be a function
         of the current progress remaining (from 1 to 0)
-    :param n_steps: The number of steps to run for each environment per update
-        (i.e. rollout buffer size is n_steps * n_envs where n_envs is number of environment copies running in parallel)
-        NOTE: n_steps * n_envs must be greater than 1 (because of the advantage normalization)
+    :param n_rollout_steps: The number of steps to run for each environment per update
+        (i.e. rollout buffer size is n_rollout_steps * n_envs where n_envs is number of environment copies running in parallel)
+        NOTE: n_rollout_steps * n_envs must be greater than 1 (because of the advantage normalization)
         See https://github.com/pytorch/pytorch/issues/29372
     :param batch_size: Minibatch size
     :param n_epochs: Number of epoch when optimizing the surrogate loss
@@ -77,7 +77,7 @@ class PPO(OnPolicyAlgorithm):
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 3e-4,
-        n_steps: int = 2048,
+        n_rollout_steps: int = 2048,
         batch_size: int = 64,
         n_epochs: int = 10,
         gamma: float = 0.99,
@@ -102,7 +102,7 @@ class PPO(OnPolicyAlgorithm):
             policy,
             env,
             learning_rate=learning_rate,
-            n_steps=n_steps,
+            n_rollout_steps=n_rollout_steps,
             gamma=gamma,
             gae_lambda=gae_lambda,
             ent_coef=ent_coef,
@@ -132,22 +132,22 @@ class PPO(OnPolicyAlgorithm):
             ), "`batch_size` must be greater than 1. See https://github.com/DLR-RM/stable-baselines3/issues/440"
 
         if self.env is not None:
-            # Check that `n_steps * n_envs > 1` to avoid NaN
+            # Check that `n_rollout_steps * n_envs > 1` to avoid NaN
             # when doing advantage normalization
-            buffer_size = self.env.num_envs * self.n_steps
+            buffer_size = self.env.num_envs * self.n_rollout_steps
             assert buffer_size > 1 or (
                 not normalize_advantage
-            ), f"`n_steps * n_envs` must be greater than 1. Currently n_steps={self.n_steps} and n_envs={self.env.num_envs}"
+            ), f"`n_rollout_steps * n_envs` must be greater than 1. Currently n_rollout_steps={self.n_rollout_steps} and n_envs={self.env.num_envs}"
             # Check that the rollout buffer size is a multiple of the mini-batch size
             untruncated_batches = buffer_size // batch_size
             if buffer_size % batch_size > 0:
                 warnings.warn(
                     f"You have specified a mini-batch size of {batch_size},"
-                    f" but because the `RolloutBuffer` is of size `n_steps * n_envs = {buffer_size}`,"
+                    f" but because the `RolloutBuffer` is of size `n_rollout_steps * n_envs = {buffer_size}`,"
                     f" after every {untruncated_batches} untruncated mini-batches,"
                     f" there will be a truncated mini-batch of size {buffer_size % batch_size}\n"
-                    f"We recommend using a `batch_size` that is a factor of `n_steps * n_envs`.\n"
-                    f"Info: (n_steps={self.n_steps} and n_envs={self.env.num_envs})"
+                    f"We recommend using a `batch_size` that is a factor of `n_rollout_steps * n_envs`.\n"
+                    f"Info: (n_rollout_steps={self.n_rollout_steps} and n_envs={self.env.num_envs})"
                 )
         self.batch_size = batch_size
         self.n_epochs = n_epochs
@@ -174,6 +174,8 @@ class PPO(OnPolicyAlgorithm):
         """
         Update policy using the currently gathered rollout buffer.
         """
+        print(f'PPO Train started ===============================')
+
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update optimizer learning rate
@@ -291,6 +293,8 @@ class PPO(OnPolicyAlgorithm):
         self.logger.record("train/clip_range", clip_range)
         if self.clip_range_vf is not None:
             self.logger.record("train/clip_range_vf", clip_range_vf)
+
+        print(f'PPO Train ended ===============================')
 
     def learn(
         self: SelfPPO,
