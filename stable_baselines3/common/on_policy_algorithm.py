@@ -140,7 +140,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         return clipped_actions, values, log_probs
 
-    def add_trajectory(self, new_obs, actions, rewards, values, log_probs, dones, infos):
+    def add_to_rollout_buffer(self, new_obs, actions, rewards, values, log_probs, dones, infos):
         self.num_timesteps += 1
         self._update_info_buffer(infos)
 

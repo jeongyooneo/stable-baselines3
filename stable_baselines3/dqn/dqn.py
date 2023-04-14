@@ -76,6 +76,7 @@ class DQN(OffPolicyAlgorithm):
         batch_size: int = 32,
         tau: float = 1.0,
         gamma: float = 0.99,
+        # unit: step, frequency: 4
         train_freq: Union[int, Tuple[int, str]] = 4,
         gradient_steps: int = 1,
         replay_buffer_class: Optional[Type[ReplayBuffer]] = None,

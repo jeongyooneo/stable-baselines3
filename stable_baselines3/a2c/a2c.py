@@ -179,7 +179,7 @@ class A2C(OnPolicyAlgorithm):
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
 
-        print(f'A2C Train ended ===============================')
+        print(f'A2C Train strated ===============================')
 
     def learn(
         self: SelfA2C,

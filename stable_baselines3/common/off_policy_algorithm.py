@@ -128,6 +128,8 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         self.replay_buffer_class = replay_buffer_class
         self.replay_buffer_kwargs = replay_buffer_kwargs or {}
         self._episode_storage = None
+        self.num_collected_steps = 0
+        self.num_collected_episodes = 0
 
         # Save train freq parameter, will be converted later to TrainFreq object
         self.train_freq = train_freq
@@ -309,7 +311,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 train_freq=self.train_freq,
                 action_noise=self.action_noise,
                 callback=callback,
-                learning_starts=self.learning_starts,
+                learning_starts=self.learning_starts, # 100 in both DQN and SAC
                 replay_buffer=self.replay_buffer,
                 log_interval=log_interval,
             )
@@ -320,6 +322,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             if self.num_timesteps > 0 and self.num_timesteps > self.learning_starts:
                 # If no `gradient_steps` is specified,
                 # do as many gradient steps as steps performed during the rollout
+                # `gradient_steps` is 1 in both DQN and SAC
                 gradient_steps = self.gradient_steps if self.gradient_steps >= 0 else rollout.episode_timesteps
                 # Special case when the user passes `gradient_steps=0`
                 if gradient_steps > 0:
@@ -335,6 +338,12 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         (gradient descent and update target networks)
         """
         raise NotImplementedError()
+
+    '''
+    Wrapper class for RTCEnv to call
+    '''
+    def sample_action(self):
+        self._sample_action(self.learning_starts, self.action_noise, self.n_envs)
 
     def _sample_action(
         self,
@@ -478,6 +487,52 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         if self._vec_normalize_env is not None:
             self._last_original_obs = new_obs_
 
+    '''
+    Initial steps when starting one rollout collection
+    '''
+    def init_rollout_collection(self):
+        self.policy.set_training_mode(False)
+
+    def collection_loop_fin(self, is_fin):
+        if is_fin:
+            self.num_collected_steps = 0
+
+    def add_to_replay_buffer(self, new_obs, buffer_actions, rewards, dones, infos):
+        self.num_collected_steps += 1
+        self.num_timesteps += 1
+
+        # Retrieve reward and episode length if using Monitor wrapper
+        self._update_info_buffer(infos, dones)
+
+        # Store data in replay buffer (normalized action and unnormalized observation)
+        self._store_transition(self.replay_buffer, buffer_actions, new_obs, rewards, dones, infos)
+
+        self._update_current_progress_remaining(self.num_timesteps, self._total_timesteps)
+
+        # For DQN, check if the target network should be updated
+        # and update the exploration schedule
+        # For SAC/TD3, the update is dones as the same time as the gradient update
+        # see https://github.com/hill-a/stable-baselines/issues/900
+        self._on_step()
+
+        for idx, done in enumerate(dones):
+            if done:
+                # Update stats
+                self.num_collected_episodes += 1
+                self._episode_num += 1
+
+                if self.action_noise is not None:
+                    kwargs = dict(indices=[idx]) if self.env.num_envs > 1 else {}
+                    self.action_noise.reset(**kwargs)
+
+                log_interval = 4
+                # Log training infos
+                if log_interval is not None and self._episode_num % log_interval == 0:
+                    self._dump_logs()
+
+        return RolloutReturn(self.num_collected_steps * self.env.num_envs, self.num_collected_episodes, True)
+
+
     def collect_rollouts(
         self,
         env: VecEnv,
@@ -510,7 +565,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         # Switch to eval mode (this affects batch norm / dropout)
         self.policy.set_training_mode(False)
 
-        num_collected_steps, num_collected_episodes = 0, 0
+        self.num_collected_steps, self.num_collected_episodes = 0, 0
 
         assert isinstance(env, VecEnv), "You must pass a VecEnv"
         assert train_freq.frequency > 0, "Should at least collect one step or episode."
@@ -527,8 +582,8 @@ class OffPolicyAlgorithm(BaseAlgorithm):
 
         callback.on_rollout_start()
         continue_training = True
-        while should_collect_more_steps(train_freq, num_collected_steps, num_collected_episodes):
-            if self.use_sde and self.sde_sample_freq > 0 and num_collected_steps % self.sde_sample_freq == 0:
+        while should_collect_more_steps(train_freq, self.num_collected_steps, self.num_collected_episodes):
+            if self.use_sde and self.sde_sample_freq > 0 and self.num_collected_steps % self.sde_sample_freq == 0:
                 # Sample a new noise matrix
                 self.actor.reset_noise(env.num_envs)
 
@@ -539,13 +594,13 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             new_obs, rewards, dones, infos = env.step(actions)
 
             self.num_timesteps += env.num_envs
-            num_collected_steps += 1
+            self.num_collected_steps += 1
 
             # Give access to local variables
             callback.update_locals(locals())
             # Only stop training if return value is False, not when it is None.
             if callback.on_step() is False:
-                return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes, continue_training=False)
+                return RolloutReturn(self.num_collected_steps * env.num_envs, self.num_collected_episodes, continue_training=False)
 
             # Retrieve reward and episode length if using Monitor wrapper
             self._update_info_buffer(infos, dones)
@@ -564,7 +619,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             for idx, done in enumerate(dones):
                 if done:
                     # Update stats
-                    num_collected_episodes += 1
+                    self.num_collected_episodes += 1
                     self._episode_num += 1
 
                     if action_noise is not None:
@@ -576,4 +631,4 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                         self._dump_logs()
         callback.on_rollout_end()
 
-        return RolloutReturn(num_collected_steps * env.num_envs, num_collected_episodes, continue_training)
+        return RolloutReturn(self.num_collected_steps * env.num_envs, self.num_collected_episodes, continue_training)
