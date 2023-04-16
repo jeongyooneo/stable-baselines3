@@ -143,6 +143,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
     def add_to_rollout_buffer(self, new_obs, actions, rewards, values, log_probs, dones, infos):
         self.num_timesteps += 1
         self._update_info_buffer(infos)
+        self._update_current_progress_remaining(self.num_timesteps, self._total_timesteps)
 
         if isinstance(self.action_space, spaces.Discrete):
             # Reshape in case of discrete action
@@ -184,6 +185,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
     def init_rollout_collection(self):
         self.policy.set_training_mode(False)
         self.rollout_buffer.reset()
+
+    def collection_loop_fin(self, is_fin):
+        pass
 
     def collect_rollouts(
         self,
