@@ -180,7 +180,9 @@ class DQN(OffPolicyAlgorithm):
         self.exploration_rate = self.exploration_schedule(self._current_progress_remaining)
         self.logger.record("rollout/exploration_rate", self.exploration_rate)
 
-    def train(self, gradient_steps: int, batch_size: int = 100) -> None:
+    def _train(self, gradient_steps: int, batch_size: int = 100) -> None:
+        print(f'DQN Train strated ===============================')
+
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update learning rate according to schedule
@@ -202,6 +204,7 @@ class DQN(OffPolicyAlgorithm):
                 target_q_values = replay_data.rewards + (1 - replay_data.dones) * self.gamma * next_q_values
 
             # Get current Q-values estimates
+            # [batch_size, action_space_len] size tensor (in our case [32 x 10])
             current_q_values = self.q_net(replay_data.observations)
 
             # Retrieve the q-values for the actions from the replay buffer
@@ -223,6 +226,7 @@ class DQN(OffPolicyAlgorithm):
 
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/loss", np.mean(losses))
+        print(f'DQN Train ended ===============================')
 
     def predict(
         self,

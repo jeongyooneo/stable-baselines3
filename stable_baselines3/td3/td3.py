@@ -141,7 +141,9 @@ class TD3(OffPolicyAlgorithm):
         self.critic = self.policy.critic
         self.critic_target = self.policy.critic_target
 
-    def train(self, gradient_steps: int, batch_size: int = 100) -> None:
+    def _train(self, gradient_steps: int, batch_size: int = 100) -> None:
+        print(f'TD3 Train started ===============================')
+
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
 
@@ -198,6 +200,8 @@ class TD3(OffPolicyAlgorithm):
         if len(actor_losses) > 0:
             self.logger.record("train/actor_loss", np.mean(actor_losses))
         self.logger.record("train/critic_loss", np.mean(critic_losses))
+
+        print(f'TD3 Train ended ===============================')
 
     def learn(
         self: SelfTD3,

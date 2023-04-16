@@ -332,7 +332,13 @@ class OffPolicyAlgorithm(BaseAlgorithm):
 
         return self
 
-    def train(self, gradient_steps: int, batch_size: int) -> None:
+    '''
+    Wrapper method of train for RTCEnv to call
+    '''
+    def train(self):
+        return self._train(batch_size=self.batch_size, gradient_steps=self.gradient_steps)
+
+    def _train(self, gradient_steps: int, batch_size: int) -> None:
         """
         Sample the replay buffer and do the updates
         (gradient descent and update target networks)
@@ -340,10 +346,10 @@ class OffPolicyAlgorithm(BaseAlgorithm):
         raise NotImplementedError()
 
     '''
-    Wrapper class for RTCEnv to call
+    Wrapper method of _sample_action for RTCEnv to call
     '''
     def sample_action(self):
-        self._sample_action(self.learning_starts, self.action_noise, self.n_envs)
+        return self._sample_action(self.learning_starts, self.action_noise, self.n_envs)
 
     def _sample_action(
         self,

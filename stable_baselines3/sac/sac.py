@@ -188,7 +188,9 @@ class SAC(OffPolicyAlgorithm):
         self.critic = self.policy.critic
         self.critic_target = self.policy.critic_target
 
-    def train(self, gradient_steps: int, batch_size: int = 64) -> None:
+    def _train(self, gradient_steps: int, batch_size: int = 64) -> None:
+        print(f'SAC Train started ===============================')
+
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update optimizers learning rate
@@ -285,6 +287,8 @@ class SAC(OffPolicyAlgorithm):
         self.logger.record("train/critic_loss", np.mean(critic_losses))
         if len(ent_coef_losses) > 0:
             self.logger.record("train/ent_coef_loss", np.mean(ent_coef_losses))
+
+        print(f'SAC Train ended ===============================')
 
     def learn(
         self: SelfSAC,
