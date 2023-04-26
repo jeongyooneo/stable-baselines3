@@ -128,7 +128,6 @@ class OnPolicyAlgorithm(BaseAlgorithm):
     def compute_actions(self):
         with th.no_grad():
             obs_tensor = obs_as_tensor(self._last_obs, self.device)
-            print(f'obs_tensor {obs_tensor}')
             actions, values, log_probs = self.policy(obs_tensor)
         actions = actions.cpu().numpy()
 
@@ -174,8 +173,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         if self.num_timesteps % self.n_rollout_steps:
             with th.no_grad():
                 # Compute value for the last timestep
-                # new_obs = obs_as_tensor(new_obs, self.device)
-                print(f'new_obs {new_obs} type {type(new_obs)}')
+                new_obs = obs_as_tensor(new_obs, self.device)
                 values = self.policy.predict_values(new_obs)
             self.rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
 
@@ -277,8 +275,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         with th.no_grad():
             # Compute value for the last timestep
-            # new_obs = obs_as_tensor(new_obs, self.device)
-            print(f'new_obs {new_obs} type {type(new_obs)}')
+            new_obs = obs_as_tensor(new_obs, self.device)
             values = self.policy.predict_values(new_obs)
 
         rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)

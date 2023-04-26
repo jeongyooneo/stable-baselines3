@@ -42,7 +42,6 @@ class FlattenExtractor(BaseFeaturesExtractor):
         self.flatten = nn.Flatten()
 
     def forward(self, observations: th.Tensor) -> th.Tensor:
-        print(f'forward: observations {observations} dim {observations.dim()}')
         return self.flatten(observations)
 
 
