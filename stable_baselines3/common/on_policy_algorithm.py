@@ -138,7 +138,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         if isinstance(self.action_space, spaces.Box):
             clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
 
-        return clipped_actions, values, log_probs
+        return clipped_actions, values, log_probs, self._last_obs
 
     def add_to_rollout_buffer(self, new_obs, actions, rewards, values, log_probs, dones, infos):
         self.num_timesteps += 1
