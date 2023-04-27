@@ -181,8 +181,6 @@ class DQN(OffPolicyAlgorithm):
         self.logger.record("rollout/exploration_rate", self.exploration_rate)
 
     def _train(self, gradient_steps: int, batch_size: int = 100) -> None:
-        print(f'DQN Train strated ===============================')
-
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
         # Update learning rate according to schedule
@@ -226,7 +224,6 @@ class DQN(OffPolicyAlgorithm):
 
         self.logger.record("train/n_updates", self._n_updates, exclude="tensorboard")
         self.logger.record("train/loss", np.mean(losses))
-        print(f'DQN Train ended ===============================')
 
     def predict(
         self,

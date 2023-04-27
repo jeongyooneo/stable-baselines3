@@ -123,7 +123,6 @@ class A2C(OnPolicyAlgorithm):
         Update policy using the currently gathered
         rollout buffer (one gradient step over whole data).
         """
-        print(f'A2C Train strated ===============================')
         # Switch to train mode (this affects batch norm / dropout)
         self.policy.set_training_mode(True)
 
@@ -178,8 +177,6 @@ class A2C(OnPolicyAlgorithm):
         self.logger.record("train/value_loss", value_loss.item())
         if hasattr(self.policy, "log_std"):
             self.logger.record("train/std", th.exp(self.policy.log_std).mean().item())
-
-        print(f'A2C Train ended ===============================')
 
     def learn(
         self: SelfA2C,

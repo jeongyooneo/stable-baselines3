@@ -369,6 +369,7 @@ class BaseAlgorithm(ABC):
     def _setup_learn(
         self,
         total_timesteps: int,
+        num_calls: int,
         callback: MaybeCallback = None,
         reset_num_timesteps: bool = True,
         tb_log_name: str = "run",
@@ -405,7 +406,11 @@ class BaseAlgorithm(ABC):
 
         # Avoid resetting the environment when calling ``.learn()`` consecutive times
         if reset_num_timesteps or self._last_obs is None:
-            self._last_obs = self.env.reset()  # pytype: disable=annotation-type-mismatch
+            init_obs = self.env.reset()
+            self._last_obs = {}
+            for call_idx in range(0, num_calls):
+                self._last_obs[call_idx] = init_obs
+
             self._last_episode_starts = np.ones((self.env.num_envs,), dtype=bool)
             # Retrieve unnormalized observation for saving into the buffer
             if self._vec_normalize_env is not None:
