@@ -1,6 +1,8 @@
 import sys
 import time
 from typing import Any, Dict, List, Optional, Tuple, Type, TypeVar, Union
+import logging
+_logger = logging.getLogger()
 
 import numpy as np
 import torch as th
@@ -113,6 +115,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
             gae_lambda=self.gae_lambda,
             n_envs=self.n_envs,
         )
+        _logger.info(f'Buffer size {self.rollout_buffer.buffer_size}')
         self.policy = self.policy_class(  # pytype:disable=not-instantiable
             self.observation_space,
             self.action_space,
@@ -144,6 +147,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         self._update_info_buffer(infos)
         self._update_current_progress_remaining(self.num_timesteps, self._total_timesteps)
 
+        # After using the action, reshape the action for internal use
         if isinstance(self.action_space, spaces.Discrete):
             # Reshape in case of discrete action
             actions = actions.reshape(-1, 1)
@@ -165,7 +169,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         # rewardw: how good the previously computed action was
         # actions, values and log_probs are calculated from self._last_obs
         # i.e. new_obs is not added in this trajectory
-        self.rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
+        is_full = self.rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
         self._last_obs = new_obs
         self._last_episode_starts = dones
 
@@ -176,6 +180,8 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 new_obs = obs_as_tensor(new_obs, self.device)
                 values = self.policy.predict_values(new_obs)
             self.rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
+
+        return is_full
 
     '''
     Initial steps when starting one rollout collection
