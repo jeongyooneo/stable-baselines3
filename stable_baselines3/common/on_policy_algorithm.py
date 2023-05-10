@@ -126,11 +126,11 @@ class OnPolicyAlgorithm(BaseAlgorithm):
     '''
     Compute actions based on the latest previous obs (self._last_obs)
     '''
-    def compute_actions(self, call_idx):
+    def compute_actions(self):
         with th.no_grad():
-            obs_tensor = obs_as_tensor(self._last_obs[call_idx], self.device)
+            obs_tensor = obs_as_tensor(self._last_obs, self.device)
             actions, values, log_probs = self.policy(obs_tensor)
-            print(f'BEFORE ENV_STEP Call {call_idx} compute_actions(): self._last_obs[{call_idx}] {self._last_obs[call_idx]} actions {actions} values {values} log_probes {log_probs}')
+            print(f'BEFORE ENV_STEP compute_actions(): self._last_obs {self._last_obs} actions {actions} values {values} log_probes {log_probs}')
         actions = actions.cpu().numpy()
 
         # Rescale and perform action
@@ -141,7 +141,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         return clipped_actions, values, log_probs
 
-    def add_to_rollout_buffer(self, call_idx, new_obs, actions, rewards, values, log_probs, dones, infos):
+    def add_to_rollout_buffer(self, new_obs, actions, rewards, values, log_probs, dones, infos):
         self.num_timesteps += self.env.num_envs
         self.num_rollout_steps += 1
         self._update_info_buffer(infos)
@@ -168,9 +168,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         # rewardw: how good the previously computed action was
         # actions, values and log_probs are calculated from self._last_obs
         # i.e. new_obs is not added in this trajectory
-        self.rollout_buffer.add(self._last_obs[call_idx], actions, rewards, self._last_episode_starts, values, log_probs)
-        print(f'AFTER ENV_STEP Call {call_idx} add_to_rollout_buffer(): self._last_obs[{call_idx}] {self._last_obs[call_idx]} actions {actions} rewards {rewards} self._last_episode_starts {self._last_episode_starts} values {values} log_probes {log_probs}')
-        self._last_obs[call_idx] = new_obs
+        is_full = self.rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
+        print(f'AFTER ENV_STEP add_to_rollout_buffer(): self._last_obs {self._last_obs} actions {actions} rewards {rewards} self._last_episode_starts {self._last_episode_starts} values {values} log_probes {log_probs}')
+        self._last_obs = new_obs
         self._last_episode_starts = dones
 
         # Rollout loop finished
@@ -181,6 +181,9 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 new_obs = obs_as_tensor(new_obs, self.device)
                 values = self.policy.predict_values(new_obs)
             self.rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
+
+        return is_full
+
 
     '''
     Initial steps when starting one rollout collection
