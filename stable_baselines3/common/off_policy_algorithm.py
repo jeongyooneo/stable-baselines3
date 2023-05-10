@@ -326,17 +326,26 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 gradient_steps = self.gradient_steps if self.gradient_steps >= 0 else rollout.episode_timesteps
                 # Special case when the user passes `gradient_steps=0`
                 if gradient_steps > 0:
-                    self.train(batch_size=self.batch_size, gradient_steps=gradient_steps)
+                    self._train(batch_size=self.batch_size, gradient_steps=gradient_steps)
 
         callback.on_training_end()
 
         return self
 
+
     '''
     Wrapper method of train for RTCEnv to call
     '''
-    def train(self):
-        return self._train(batch_size=self.batch_size, gradient_steps=self.gradient_steps)
+    def train(self, rollout):
+        if self.num_timesteps > 0 and self.num_timesteps > self.learning_starts:
+            # If no `gradient_steps` is specified,
+            # do as many gradient steps as steps performed during the rollout
+            # `gradient_steps` is 1 in both DQN and SAC
+            gradient_steps = self.gradient_steps if self.gradient_steps >= 0 else rollout.episode_timesteps
+            # Special case when the user passes `gradient_steps=0`
+            if gradient_steps > 0:
+                self._train(batch_size=self.batch_size, gradient_steps=gradient_steps)
+
 
     def _train(self, gradient_steps: int, batch_size: int) -> None:
         """
@@ -349,7 +358,9 @@ class OffPolicyAlgorithm(BaseAlgorithm):
     Wrapper method of _sample_action for RTCEnv to call
     '''
     def sample_action(self):
-        return self._sample_action(self.learning_starts, self.action_noise, self.n_envs)
+        action, buffer_action = self._sample_action(self.learning_starts, self.action_noise, self.n_envs)
+        print(f'BEFORE ENV_STEP sample_actions(): self.learning_starts {self.learning_starts} actions {action} self.action_noise {self.action_noise} self.n_envs {self.n_envs}')
+        return action, buffer_action
 
     def _sample_action(
         self,
@@ -504,15 +515,15 @@ class OffPolicyAlgorithm(BaseAlgorithm):
             self.num_collected_steps = 0
 
     def add_to_replay_buffer(self, new_obs, buffer_actions, rewards, dones, infos):
-        self.num_collected_steps += 1
         self.num_timesteps += 1
+        self.num_collected_steps += 1
 
         # Retrieve reward and episode length if using Monitor wrapper
         self._update_info_buffer(infos, dones)
 
         # Store data in replay buffer (normalized action and unnormalized observation)
         self._store_transition(self.replay_buffer, buffer_actions, new_obs, rewards, dones, infos)
-
+        print(f'AFTER ENV_STEP add_to_replay_buffer(): self.replay_buffer {self.replay_buffer} buffer_actions {buffer_actions} new_obs {new_obs} rewards {rewards} dones {dones} infos {infos}')
         self._update_current_progress_remaining(self.num_timesteps, self._total_timesteps)
 
         # For DQN, check if the target network should be updated
@@ -536,7 +547,16 @@ class OffPolicyAlgorithm(BaseAlgorithm):
                 if log_interval is not None and self._episode_num % log_interval == 0:
                     self._dump_logs()
 
-        return RolloutReturn(self.num_collected_steps * self.env.num_envs, self.num_collected_episodes, True)
+        if not should_collect_more_steps(self.train_freq, self.num_collected_steps, self.num_collected_episodes):
+            return RolloutReturn(self.num_collected_steps * self.env.num_envs, self.num_collected_episodes, True)
+        else:
+            return None
+
+    '''
+    Initial steps when starting one rollout collection
+    '''
+    def init_rollout_collection(self):
+        self.policy.set_training_mode(False)
 
 
     def collect_rollouts(

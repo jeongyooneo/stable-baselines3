@@ -169,7 +169,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         # actions, values and log_probs are calculated from self._last_obs
         # i.e. new_obs is not added in this trajectory
         is_full = self.rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
-        print(f'AFTER ENV_STEP add_to_rollout_buffer(): self._last_obs {self._last_obs} actions {actions} rewards {rewards} self._last_episode_starts {self._last_episode_starts} values {values} log_probes {log_probs}')
+        print(f'AFTER ENV_STEP add_to_rollout_buffer(): self._last_obs {self._last_obs} actions {actions} rewards {rewards} self._last_episode_starts {self._last_episode_starts} values {values} log_probes {log_probs} dones {dones} infos {infos}')
         self._last_obs = new_obs
         self._last_episode_starts = dones
 
