@@ -359,7 +359,7 @@ class OffPolicyAlgorithm(BaseAlgorithm):
     '''
     def sample_action(self):
         action, buffer_action = self._sample_action(self.learning_starts, self.action_noise, self.n_envs)
-        print(f'BEFORE ENV_STEP sample_actions(): self.learning_starts {self.learning_starts} actions {action} self.action_noise {self.action_noise} self.n_envs {self.n_envs}')
+        print(f'BEFORE ENV_STEP sample_actions(): self.learning_starts {self.learning_starts} actions {action} buffer_action {buffer_action}')
         return action, buffer_action
 
     def _sample_action(

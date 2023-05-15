@@ -95,7 +95,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
         self.max_grad_norm = max_grad_norm
         self.rollout_buffer = None
         self.num_rollout_steps = 0
-        self._last_obs = {}
+        self._last_obs = None
 
         if _init_setup_model:
             self._setup_model()
@@ -141,7 +141,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         return clipped_actions, values, log_probs
 
-    def add_to_rollout_buffer(self, new_obs, actions, rewards, values, log_probs, dones, infos):
+    def add_to_rollout_buffer(self, new_obs, applied_action, rewards, values, log_probs, dones, infos):
         self.num_timesteps += self.env.num_envs
         self.num_rollout_steps += 1
         self._update_info_buffer(infos)
@@ -149,7 +149,7 @@ class OnPolicyAlgorithm(BaseAlgorithm):
 
         if isinstance(self.action_space, spaces.Discrete):
             # Reshape in case of discrete action
-            actions = actions.reshape(-1, 1)
+            applied_action = applied_action.reshape(-1, 1)
 
         # Handle timeout by bootstraping with value function
         # see GitHub issue #633
@@ -165,11 +165,11 @@ class OnPolicyAlgorithm(BaseAlgorithm):
                 rewards[idx] += self.gamma * terminal_value
 
         # Note that the trajectory is related to the self._last_obs
-        # rewardw: how good the previously computed action was
-        # actions, values and log_probs are calculated from self._last_obs
+        # rewards: how good the previously computed action was
+        # applied_action, values and log_probs are calculated from self._last_obs
         # i.e. new_obs is not added in this trajectory
-        is_full = self.rollout_buffer.add(self._last_obs, actions, rewards, self._last_episode_starts, values, log_probs)
-        print(f'AFTER ENV_STEP add_to_rollout_buffer(): self._last_obs {self._last_obs} actions {actions} rewards {rewards} self._last_episode_starts {self._last_episode_starts} values {values} log_probes {log_probs} dones {dones} infos {infos}')
+        is_full = self.rollout_buffer.add(self._last_obs, applied_action, rewards, self._last_episode_starts, values, log_probs)
+        print(f'AFTER ENV_STEP add_to_rollout_buffer(): self._last_obs {self._last_obs} applied action {applied_action} rewards {rewards} self._last_episode_starts {self._last_episode_starts} values {values} log_probes {log_probs} dones {dones} infos {infos}')
         self._last_obs = new_obs
         self._last_episode_starts = dones
 
