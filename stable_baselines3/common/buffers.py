@@ -4,7 +4,7 @@ from typing import Any, Dict, Generator, List, Optional, Union
 
 import numpy as np
 import torch as th
-from gym import spaces
+from gymnasium import spaces
 
 from stable_baselines3.common.preprocessing import get_action_dim, get_obs_shape
 from stable_baselines3.common.type_aliases import (
@@ -207,7 +207,9 @@ class ReplayBuffer(BaseBuffer):
         else:
             self.next_observations = np.zeros((self.buffer_size, self.n_envs, *self.obs_shape), dtype=observation_space.dtype)
 
-        self.actions = np.zeros((self.buffer_size, self.n_envs, self.action_dim), dtype=action_space.dtype)
+        self.actions = np.zeros(
+            (self.buffer_size, self.n_envs, self.action_dim), dtype=self._maybe_cast_dtype(action_space.dtype)
+        )
 
         self.rewards = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
         self.dones = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
@@ -311,6 +313,21 @@ class ReplayBuffer(BaseBuffer):
         )
         return ReplayBufferSamples(*tuple(map(self.to_torch, data)))
 
+    @staticmethod
+    def _maybe_cast_dtype(dtype: np.typing.DTypeLike) -> np.typing.DTypeLike:
+        """
+        Cast `np.float64` action datatype to `np.float32`,
+        keep the others dtype unchanged.
+        See GH#1572 for more information.
+
+        :param dtype: The original action space dtype
+        :return: ``np.float32`` if the dtype was float64,
+            the original dtype otherwise.
+        """
+        if dtype == np.float64:
+            return np.float32
+        return dtype
+
 
 class RolloutBuffer(BaseBuffer):
     """
@@ -335,6 +352,15 @@ class RolloutBuffer(BaseBuffer):
     :param n_envs: Number of parallel environments
     """
 
+    observations: np.ndarray
+    actions: np.ndarray
+    rewards: np.ndarray
+    advantages: np.ndarray
+    returns: np.ndarray
+    episode_starts: np.ndarray
+    log_probs: np.ndarray
+    values: np.ndarray
+
     def __init__(
         self,
         buffer_size: int,
@@ -348,8 +374,6 @@ class RolloutBuffer(BaseBuffer):
         super().__init__(buffer_size, observation_space, action_space, device, n_envs=n_envs)
         self.gae_lambda = gae_lambda
         self.gamma = gamma
-        self.observations, self.actions, self.rewards, self.advantages = None, None, None, None
-        self.returns, self.episode_starts, self.values, self.log_probs = None, None, None, None
         self.generator_ready = False
         self.reset()
 
@@ -538,7 +562,9 @@ class DictReplayBuffer(ReplayBuffer):
             for key, _obs_shape in self.obs_shape.items()
         }
 
-        self.actions = np.zeros((self.buffer_size, self.n_envs, self.action_dim), dtype=action_space.dtype)
+        self.actions = np.zeros(
+            (self.buffer_size, self.n_envs, self.action_dim), dtype=self._maybe_cast_dtype(action_space.dtype)
+        )
         self.rewards = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
         self.dones = np.zeros((self.buffer_size, self.n_envs), dtype=np.float32)
 
@@ -676,6 +702,8 @@ class DictRolloutBuffer(RolloutBuffer):
     :param n_envs: Number of parallel environments
     """
 
+    observations: Dict[str, np.ndarray]
+
     def __init__(
         self,
         buffer_size: int,
@@ -692,8 +720,7 @@ class DictRolloutBuffer(RolloutBuffer):
 
         self.gae_lambda = gae_lambda
         self.gamma = gamma
-        self.observations, self.actions, self.rewards, self.advantages = None, None, None, None
-        self.returns, self.episode_starts, self.values, self.log_probs = None, None, None, None
+
         self.generator_ready = False
         self.reset()
 

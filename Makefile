@@ -10,6 +10,12 @@ pytype:
 mypy:
 	mypy ${LINT_PATHS}
 
+missing-annotations:
+	mypy --disallow-untyped-calls --disallow-untyped-defs --ignore-missing-imports stable_baselines3
+
+# missing docstrings
+# pylint -d R,C,W,E -e C0116 stable_baselines3 -j 4
+
 type: pytype mypy
 
 lint:
@@ -54,14 +60,12 @@ docker-gpu:
 
 # PyPi package release
 release:
-	python setup.py sdist
-	python setup.py bdist_wheel
+	python -m build
 	twine upload dist/*
 
 # Test PyPi package release
 test-release:
-	python setup.py sdist
-	python setup.py bdist_wheel
+	python -m build
 	twine upload --repository-url https://test.pypi.org/legacy/ dist/*
 
 .PHONY: clean spelling doc lint format check-codestyle commit-checks

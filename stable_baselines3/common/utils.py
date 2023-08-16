@@ -7,10 +7,11 @@ from collections import deque
 from itertools import zip_longest
 from typing import Dict, Iterable, List, Optional, Tuple, Union
 
-import gym
+import cloudpickle
+import gymnasium as gym
 import numpy as np
 import torch as th
-from gym import spaces
+from gymnasium import spaces
 
 import stable_baselines3 as sb3
 
@@ -535,8 +536,16 @@ def get_system_info(print_info: bool = True) -> Tuple[Dict[str, str], str]:
         "PyTorch": th.__version__,
         "GPU Enabled": str(th.cuda.is_available()),
         "Numpy": np.__version__,
-        "Gym": gym.__version__,
+        "Cloudpickle": cloudpickle.__version__,
+        "Gymnasium": gym.__version__,
     }
+    try:
+        import gym as openai_gym  # pytype: disable=import-error
+
+        env_info.update({"OpenAI Gym": openai_gym.__version__})
+    except ImportError:
+        pass
+
     env_info_str = ""
     for key, value in env_info.items():
         env_info_str += f"- {key}: {value}\n"
