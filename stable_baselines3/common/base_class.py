@@ -281,7 +281,7 @@ class BaseAlgorithm(ABC):
         :param num_timesteps: current number of timesteps
         :param total_timesteps:
         """
-        self._current_progress_remaining = 1.0 - float(num_timesteps) / float(total_timesteps)
+        # self._current_progress_remaining = 1.0 - float(num_timesteps) / float(total_timesteps)
 
     def _update_learning_rate(self, optimizers: Union[List[th.optim.Optimizer], th.optim.Optimizer]) -> None:
         """
